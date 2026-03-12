@@ -4,6 +4,10 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Dashboard</title>
+        <script
+            defer
+            src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"
+        ></script>
         <style>
             *,
             *::before,
@@ -48,7 +52,7 @@
                 letter-spacing: -0.02em;
             }
 
-            #updated {
+            .updated {
                 font-size: 0.75rem;
                 color: var(--muted);
             }
@@ -167,6 +171,39 @@
                 flex-shrink: 0;
             }
 
+            .profile-card {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 1rem 1.5rem;
+                max-width: 860px;
+                margin: 0 auto 0.75rem;
+                display: flex;
+                flex-direction: row;
+                gap: 2rem;
+                flex-wrap: wrap;
+            }
+
+            .social-stat {
+                text-align: center;
+            }
+
+            .color-x {
+                color: #e7e9ea;
+            }
+            .color-reddit {
+                color: #ff4500;
+            }
+            .color-facebook {
+                color: #1877f2;
+            }
+            .color-github {
+                color: #c9d1d9;
+            }
+            .color-youtube {
+                color: #ff0000;
+            }
+
             .error-banner {
                 max-width: 860px;
                 margin: 0 auto 1rem;
@@ -176,128 +213,218 @@
                 border-radius: 8px;
                 font-size: 0.82rem;
                 color: #f87171;
-                display: none;
             }
         </style>
     </head>
-    <body>
+    <body x-data="dashboard()" x-init="init()">
         <header>
-            <h1>Extensions Dashboard</h1>
+            <h1>Dashboard</h1>
             <div style="display: flex; align-items: center">
-                <span id="updated"></span>
-                <button class="refresh-btn" onclick="loadStats()">
-                    Refresh
-                </button>
+                <span
+                    class="updated"
+                    x-text="updatedAt ? 'Updated ' + new Date(updatedAt).toLocaleTimeString() : ''"
+                ></span>
+                <button class="refresh-btn" @click="load()">Refresh</button>
             </div>
         </header>
 
-        <div class="error-banner" id="error"></div>
-        <div class="grid" id="grid"></div>
+        <div
+            class="error-banner"
+            x-show="error"
+            x-text="'Failed to load stats: ' + error"
+        ></div>
+
+        <div class="profile-card" x-show="profile">
+            <template x-for="item in profileItems()" :key="item.label">
+                <div class="social-stat">
+                    <div class="stat-label" x-text="item.label"></div>
+                    <div
+                        class="stat-value"
+                        :class="item.color"
+                        x-text="fmt(item.value)"
+                    ></div>
+                </div>
+            </template>
+        </div>
+
+        <div class="grid">
+            <template x-for="ext in cards" :key="ext.id">
+                <div class="ext-card">
+                    <div class="ext-icon">
+                        <img
+                            :src="ext.favicon"
+                            :alt="ext.label"
+                            width="22"
+                            height="22"
+                            style="border-radius: 4px; object-fit: contain"
+                        />
+                    </div>
+                    <div class="ext-info">
+                        <div class="ext-name" x-text="ext.label"></div>
+                        <div class="ext-id" x-text="ext.id"></div>
+                    </div>
+                    <div class="stats">
+                        <div class="stat">
+                            <div class="stat-label">Marketplace</div>
+                            <div
+                                class="stat-value color-blue"
+                                :class="{ loading }"
+                                x-text="loading ? '…' : fmt(ext.marketplace?.installs)"
+                            ></div>
+                        </div>
+                        <div class="divider"></div>
+                        <div class="stat">
+                            <div class="stat-label">Open VSX</div>
+                            <div
+                                class="stat-value color-green"
+                                :class="{ loading }"
+                                x-text="loading ? '…' : (ext.openVsx?.notFound ? '—' : fmt(ext.openVsx?.downloads))"
+                            ></div>
+                        </div>
+                        <div class="divider"></div>
+                        <div class="stat">
+                            <div class="stat-label">Visitors 30d</div>
+                            <div
+                                class="stat-value color-purple"
+                                :class="{ loading }"
+                                x-text="loading ? '…' : fmt(ext.visitors)"
+                            ></div>
+                        </div>
+                        <div class="divider"></div>
+                        <div class="stat">
+                            <div class="stat-label">Returning</div>
+                            <div
+                                class="stat-value color-orange"
+                                :class="{ loading }"
+                                x-text="loading ? '…' : fmt(ext.returning)"
+                            ></div>
+                        </div>
+                        <div class="divider"></div>
+                        <div class="stat">
+                            <div class="stat-label">Users</div>
+                            <div
+                                class="stat-value color-green"
+                                :class="{ loading }"
+                                x-text="loading ? '…' : fmt(ext.users)"
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
 
         <script>
             const EXTENSIONS = [
-                { id: "GitusAI.gitusai", label: "GitusAI", icon: "🤖" },
+                {
+                    id: "GitusAI.gitusai",
+                    label: "GitusAI",
+                    favicon: "https://gitusai.com/logo.png",
+                },
                 {
                     id: "WatchAPI.watchapi-client",
                     label: "WatchAPI",
-                    icon: "👁️",
+                    favicon:
+                        "https://watchapi.dev/_next/image?url=%2Flogo.png&w=96&q=75",
                 },
             ];
 
-            function fmt(n) {
-                if (n == null) return "—";
-                if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-                if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
-                return n.toLocaleString();
+            function dashboard() {
+                return {
+                    cards: EXTENSIONS,
+                    loading: true,
+                    updatedAt: null,
+                    error: null,
+                    profile: null,
+
+                    async init() {
+                        await Promise.all([this.load(), this.loadProfile()]);
+                        this.loadX();
+                        setInterval(() => this.load(), 5 * 60 * 1000);
+                        setInterval(() => this.loadProfile(), 15 * 60 * 1000);
+                        setInterval(() => this.loadX(), 15 * 60 * 1000);
+                    },
+
+                    async loadProfile() {
+                        try {
+                            const res = await fetch("/api/profile");
+                            if (!res.ok)
+                                throw new Error(`Server error: ${res.status}`);
+                            this.profile = await res.json();
+                        } catch (err) {
+                            console.error("Profile fetch failed:", err.message);
+                        }
+                    },
+
+                    async loadX() {
+                        try {
+                            const res = await fetch("/api/x-followers");
+                            const { x } = await res.json();
+                            this.profile = { ...this.profile, x };
+                        } catch (err) {
+                            console.error("X fetch failed:", err.message);
+                        }
+                    },
+
+                    profileItems() {
+                        if (!this.profile) return [];
+                        return [
+                            {
+                                label: "Reddit",
+                                value: this.profile.reddit,
+                                color: "color-reddit",
+                            },
+                            {
+                                label: "Facebook",
+                                value: this.profile.facebook,
+                                color: "color-facebook",
+                            },
+                            {
+                                label: "GitHub",
+                                value: this.profile.github,
+                                color: "color-github",
+                            },
+                            {
+                                label: "YouTube",
+                                value: this.profile.youtube,
+                                color: "color-youtube",
+                            },
+                            {
+                                label: "X",
+                                value: this.profile.x,
+                                color: "color-x",
+                            },
+                        ].filter((i) => i.value !== null);
+                    },
+
+                    async load() {
+                        this.loading = true;
+                        this.error = null;
+                        try {
+                            const res = await fetch("/api/stats");
+                            if (!res.ok)
+                                throw new Error(`Server error: ${res.status}`);
+                            const { stats, updatedAt } = await res.json();
+                            this.cards = stats.map((s) => ({
+                                ...EXTENSIONS.find((e) => e.id === s.id),
+                                ...s,
+                            }));
+                            this.updatedAt = updatedAt;
+                        } catch (err) {
+                            this.error = err.message;
+                        } finally {
+                            this.loading = false;
+                        }
+                    },
+
+                    fmt(n) {
+                        if (n == null) return "—";
+                        if (n >= 1_000_000)
+                            return (n / 1_000_000).toFixed(1) + "M";
+                        if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+                        return n.toLocaleString();
+                    },
+                };
             }
-
-            function buildCards() {
-                const grid = document.getElementById("grid");
-                grid.innerHTML = "";
-                for (const ext of EXTENSIONS) {
-                    grid.insertAdjacentHTML(
-                        "beforeend",
-                        `
-        <div class="ext-card">
-          <div class="ext-icon">${ext.icon}</div>
-          <div class="ext-info">
-            <div class="ext-name">${ext.label}</div>
-            <div class="ext-id">${ext.id}</div>
-          </div>
-          <div class="stats">
-            <div class="stat">
-              <div class="stat-label">Marketplace</div>
-              <div class="stat-value color-blue loading" id="ms-${ext.id}">…</div>
-            </div>
-            <div class="divider"></div>
-            <div class="stat">
-              <div class="stat-label">Open VSX</div>
-              <div class="stat-value color-green loading" id="vsx-${ext.id}">…</div>
-            </div>
-            <div class="divider"></div>
-            <div class="stat">
-              <div class="stat-label">Visitors 30d</div>
-              <div class="stat-value color-purple loading" id="vis-${ext.id}">…</div>
-            </div>
-            <div class="divider"></div>
-            <div class="stat">
-              <div class="stat-label">Returning</div>
-              <div class="stat-value color-orange loading" id="ret-${ext.id}">…</div>
-            </div>
-            <div class="divider"></div>
-            <div class="stat">
-              <div class="stat-label">Users</div>
-              <div class="stat-value color-green loading" id="usr-${ext.id}">…</div>
-            </div>
-          </div>
-        </div>
-      `,
-                    );
-                }
-            }
-
-            async function loadStats() {
-                buildCards();
-                document.getElementById("error").style.display = "none";
-                document.getElementById("updated").textContent = "";
-
-                try {
-                    const res = await fetch("/api/stats");
-                    if (!res.ok) throw new Error(`Server error: ${res.status}`);
-                    const { stats, updatedAt } = await res.json();
-
-                    for (const ext of stats) {
-                        const msEl = document.getElementById(`ms-${ext.id}`);
-                        const vsxEl = document.getElementById(`vsx-${ext.id}`);
-                        msEl.classList.remove("loading");
-                        vsxEl.classList.remove("loading");
-                        const visEl = document.getElementById(`vis-${ext.id}`);
-                        const retEl = document.getElementById(`ret-${ext.id}`);
-                        const usrEl = document.getElementById(`usr-${ext.id}`);
-                        visEl.classList.remove("loading");
-                        retEl.classList.remove("loading");
-                        usrEl.classList.remove("loading");
-                        msEl.textContent = fmt(ext.marketplace.installs);
-                        vsxEl.textContent = ext.openVsx.notFound
-                            ? "—"
-                            : fmt(ext.openVsx.downloads);
-                        visEl.textContent = fmt(ext.visitors);
-                        retEl.textContent = fmt(ext.returning);
-                        usrEl.textContent =
-                            ext.users != null ? fmt(ext.users) : "—";
-                    }
-
-                    document.getElementById("updated").textContent =
-                        "Updated " + new Date(updatedAt).toLocaleTimeString();
-                } catch (err) {
-                    const banner = document.getElementById("error");
-                    banner.style.display = "block";
-                    banner.textContent = "Failed to load stats: " + err.message;
-                }
-            }
-
-            loadStats();
-            setInterval(loadStats, 5 * 60 * 1000);
         </script>
     </body>
 </html>

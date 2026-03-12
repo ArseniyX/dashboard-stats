@@ -1,3 +1,4 @@
+import puppeteer from "puppeteer";
 import express from "express";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -172,6 +173,118 @@ app.get("/api/stats", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// --- Social profile fetchers ---
+async function fetchGitHub() {
+  const username = process.env.GITHUB_USERNAME;
+  if (!username) return null;
+  const res = await fetch(`https://api.github.com/users/${username}`, {
+    headers: { "User-Agent": "dashboard" },
+  });
+  if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
+  const data = await res.json();
+  return data.followers;
+}
+
+async function fetchReddit() {
+  const username = process.env.REDDIT_USERNAME;
+  if (!username) return null;
+  const res = await fetch(`https://www.reddit.com/user/${username}/about.json`, {
+    headers: { "User-Agent": "dashboard/1.0" },
+  });
+  if (!res.ok) throw new Error(`Reddit API error: ${res.status}`);
+  const data = await res.json();
+  return data.data.total_karma;
+}
+
+async function fetchFacebook() {
+  const token = process.env.FACEBOOK_PAGE_TOKEN;
+  const pageId = process.env.FACEBOOK_PAGE_ID;
+  if (!token || !pageId) return null;
+  const res = await fetch(
+    `https://graph.facebook.com/${pageId}?fields=followers_count&access_token=${token}`
+  );
+  if (!res.ok) throw new Error(`Facebook API error: ${res.status}`);
+  const data = await res.json();
+  return data.followers_count;
+}
+
+async function fetchYouTube() {
+  const key = process.env.YOUTUBE_API_KEY;
+  const channelId = process.env.YOUTUBE_CHANNEL_ID;
+  if (!key || !channelId) return null;
+  const res = await fetch(
+    `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}&key=${key}`
+  );
+  if (!res.ok) throw new Error(`YouTube API error: ${res.status}`);
+  const data = await res.json();
+  return parseInt(data.items?.[0]?.statistics?.subscriberCount ?? null);
+}
+
+// --- Shared browser instance ---
+let browser = null;
+async function getBrowser() {
+  if (!browser || !browser.connected) {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+  }
+  return browser;
+}
+
+function parseFormattedCount(str) {
+  if (!str) return null;
+  const s = str.trim().replace(/,/g, "");
+  if (s.endsWith("M")) return Math.round(parseFloat(s) * 1_000_000);
+  if (s.endsWith("K")) return Math.round(parseFloat(s) * 1_000);
+  return parseInt(s) || null;
+}
+
+async function fetchX() {
+  const username = process.env.X_USERNAME;
+  if (!username) return null;
+  const b = await getBrowser();
+  const page = await b.newPage();
+  try {
+    await page.setUserAgent(
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    );
+    await page.goto(`https://x.com/${username}`, { waitUntil: "networkidle2", timeout: 30000 });
+    await page.waitForSelector(`a[href="/${username}/verified_followers"]`, { timeout: 15000 });
+    const text = await page.$eval(
+      `a[href="/${username}/verified_followers"]`,
+      (el) => el.textContent.trim().split(/\s+/)[0]
+    );
+    return parseFormattedCount(text);
+  } finally {
+    await page.close();
+  }
+}
+
+app.get("/api/x-followers", async (req, res) => {
+  try {
+    const x = await fetchX();
+    res.json({ x });
+  } catch (err) {
+    console.error("[X]", err.message);
+    res.json({ x: null });
+  }
+});
+
+app.get("/api/profile", async (req, res) => {
+  const safe = (fn, label) =>
+    fn().catch((err) => { console.error(`[${label}]`, err.message); return null; });
+
+  const [github, reddit, facebook, youtube] = await Promise.all([
+    safe(fetchGitHub, "GitHub"),
+    safe(fetchReddit, "Reddit"),
+    safe(fetchFacebook, "Facebook"),
+    safe(fetchYouTube, "YouTube"),
+  ]);
+
+  res.json({ github, reddit, facebook, youtube, updatedAt: new Date().toISOString() });
 });
 
 app.use(express.static(join(__dirname, "public")));
