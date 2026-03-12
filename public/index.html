@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Dashboard</title>
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            :root {
+                --bg: #0f1117;
+                --surface: #1a1d27;
+                --border: #2a2d3a;
+                --text: #e8eaf0;
+                --muted: #6b7080;
+                --accent-blue: #4f8ef7;
+                --accent-green: #34d399;
+                --accent-purple: #a78bfa;
+                --accent-orange: #fb923c;
+            }
+
+            body {
+                background: var(--bg);
+                color: var(--text);
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                min-height: 100vh;
+                padding: 2rem 1.5rem;
+            }
+
+            header {
+                max-width: 860px;
+                margin: 0 auto 1.75rem;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            h1 {
+                font-size: 1.1rem;
+                font-weight: 600;
+                letter-spacing: -0.02em;
+            }
+
+            #updated {
+                font-size: 0.75rem;
+                color: var(--muted);
+            }
+
+            .refresh-btn {
+                background: none;
+                border: 1px solid var(--border);
+                color: var(--muted);
+                border-radius: 6px;
+                padding: 0.3rem 0.65rem;
+                font-size: 0.75rem;
+                cursor: pointer;
+                transition:
+                    border-color 0.15s,
+                    color 0.15s;
+                margin-left: 0.6rem;
+            }
+            .refresh-btn:hover {
+                border-color: var(--accent-blue);
+                color: var(--accent-blue);
+            }
+
+            .grid {
+                max-width: 860px;
+                margin: 0 auto;
+                display: flex;
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+
+            .ext-card {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                padding: 1rem 1.25rem;
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+            }
+
+            .ext-icon {
+                width: 32px;
+                height: 32px;
+                border-radius: 7px;
+                background: var(--border);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.95rem;
+                flex-shrink: 0;
+            }
+
+            .ext-info {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .ext-name {
+                font-size: 0.9rem;
+                font-weight: 600;
+            }
+            .ext-id {
+                font-size: 0.7rem;
+                color: var(--muted);
+                margin-top: 1px;
+            }
+
+            .stats {
+                display: flex;
+                gap: 1.25rem;
+                flex-shrink: 0;
+            }
+
+            .stat {
+                text-align: right;
+            }
+
+            .stat-label {
+                font-size: 0.65rem;
+                color: var(--muted);
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                margin-bottom: 2px;
+            }
+
+            .stat-value {
+                font-size: 1.2rem;
+                font-weight: 700;
+                letter-spacing: -0.03em;
+                line-height: 1;
+            }
+
+            .stat-value.loading {
+                color: var(--border);
+                font-size: 0.9rem;
+                font-weight: 400;
+            }
+
+            .color-blue {
+                color: var(--accent-blue);
+            }
+            .color-green {
+                color: var(--accent-green);
+            }
+            .color-purple {
+                color: var(--accent-purple);
+            }
+            .color-orange {
+                color: var(--accent-orange);
+            }
+
+            .divider {
+                width: 1px;
+                height: 32px;
+                background: var(--border);
+                flex-shrink: 0;
+            }
+
+            .error-banner {
+                max-width: 860px;
+                margin: 0 auto 1rem;
+                padding: 0.75rem 1rem;
+                background: #2a1515;
+                border: 1px solid #5c2020;
+                border-radius: 8px;
+                font-size: 0.82rem;
+                color: #f87171;
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <h1>Extensions Dashboard</h1>
+            <div style="display: flex; align-items: center">
+                <span id="updated"></span>
+                <button class="refresh-btn" onclick="loadStats()">
+                    Refresh
+                </button>
+            </div>
+        </header>
+
+        <div class="error-banner" id="error"></div>
+        <div class="grid" id="grid"></div>
+
+        <script>
+            const EXTENSIONS = [
+                { id: "GitusAI.gitusai", label: "GitusAI", icon: "🤖" },
+                {
+                    id: "WatchAPI.watchapi-client",
+                    label: "WatchAPI",
+                    icon: "👁️",
+                },
+            ];
+
+            function fmt(n) {
+                if (n == null) return "—";
+                if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+                if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+                return n.toLocaleString();
+            }
+
+            function buildCards() {
+                const grid = document.getElementById("grid");
+                grid.innerHTML = "";
+                for (const ext of EXTENSIONS) {
+                    grid.insertAdjacentHTML(
+                        "beforeend",
+                        `
+        <div class="ext-card">
+          <div class="ext-icon">${ext.icon}</div>
+          <div class="ext-info">
+            <div class="ext-name">${ext.label}</div>
+            <div class="ext-id">${ext.id}</div>
+          </div>
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-label">Marketplace</div>
+              <div class="stat-value color-blue loading" id="ms-${ext.id}">…</div>
+            </div>
+            <div class="divider"></div>
+            <div class="stat">
+              <div class="stat-label">Open VSX</div>
+              <div class="stat-value color-green loading" id="vsx-${ext.id}">…</div>
+            </div>
+            <div class="divider"></div>
+            <div class="stat">
+              <div class="stat-label">Visitors 30d</div>
+              <div class="stat-value color-purple loading" id="vis-${ext.id}">…</div>
+            </div>
+            <div class="divider"></div>
+            <div class="stat">
+              <div class="stat-label">Returning</div>
+              <div class="stat-value color-orange loading" id="ret-${ext.id}">…</div>
+            </div>
+            <div class="divider"></div>
+            <div class="stat">
+              <div class="stat-label">Users</div>
+              <div class="stat-value color-green loading" id="usr-${ext.id}">…</div>
+            </div>
+          </div>
+        </div>
+      `,
+                    );
+                }
+            }
+
+            async function loadStats() {
+                buildCards();
+                document.getElementById("error").style.display = "none";
+                document.getElementById("updated").textContent = "";
+
+                try {
+                    const res = await fetch("/api/stats");
+                    if (!res.ok) throw new Error(`Server error: ${res.status}`);
+                    const { stats, updatedAt } = await res.json();
+
+                    for (const ext of stats) {
+                        const msEl = document.getElementById(`ms-${ext.id}`);
+                        const vsxEl = document.getElementById(`vsx-${ext.id}`);
+                        msEl.classList.remove("loading");
+                        vsxEl.classList.remove("loading");
+                        const visEl = document.getElementById(`vis-${ext.id}`);
+                        const retEl = document.getElementById(`ret-${ext.id}`);
+                        const usrEl = document.getElementById(`usr-${ext.id}`);
+                        visEl.classList.remove("loading");
+                        retEl.classList.remove("loading");
+                        usrEl.classList.remove("loading");
+                        msEl.textContent = fmt(ext.marketplace.installs);
+                        vsxEl.textContent = ext.openVsx.notFound
+                            ? "—"
+                            : fmt(ext.openVsx.downloads);
+                        visEl.textContent = fmt(ext.visitors);
+                        retEl.textContent = fmt(ext.returning);
+                        usrEl.textContent =
+                            ext.users != null ? fmt(ext.users) : "—";
+                    }
+
+                    document.getElementById("updated").textContent =
+                        "Updated " + new Date(updatedAt).toLocaleTimeString();
+                } catch (err) {
+                    const banner = document.getElementById("error");
+                    banner.style.display = "block";
+                    banner.textContent = "Failed to load stats: " + err.message;
+                }
+            }
+
+            loadStats();
+            setInterval(loadStats, 5 * 60 * 1000);
+        </script>
+    </body>
+</html>
