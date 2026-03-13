@@ -1,0 +1,52 @@
+{
+  "prev": {
+    "stats": [
+      {
+        "id": "GitusAI.gitusai",
+        "installs": 268,
+        "downloads": 1034,
+        "visitors": 65,
+        "returning": 133,
+        "users": 178
+      },
+      {
+        "id": "WatchAPI.watchapi-client",
+        "installs": 54,
+        "downloads": 1949,
+        "visitors": 29,
+        "returning": 3,
+        "users": 12
+      }
+    ],
+    "profile": {},
+    "savedAt": "2026-03-12T19:56:37.573Z"
+  },
+  "current": {
+    "stats": [
+      {
+        "id": "GitusAI.gitusai",
+        "installs": 266,
+        "downloads": 1050,
+        "visitors": 67,
+        "returning": 4,
+        "users": 179
+      },
+      {
+        "id": "WatchAPI.watchapi-client",
+        "installs": 54,
+        "downloads": 1955,
+        "visitors": 32,
+        "returning": 13,
+        "users": 12
+      }
+    ],
+    "profile": {
+      "github": 13,
+      "reddit": 314,
+      "facebook": null,
+      "youtube": 1,
+      "x": 9,
+      "tiktok": 0
+    }
+  }
+}
