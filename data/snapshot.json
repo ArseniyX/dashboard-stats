@@ -3,50 +3,91 @@
     "stats": [
       {
         "id": "GitusAI.gitusai",
-        "installs": 268,
-        "downloads": 1034,
-        "visitors": 65,
-        "returning": 133,
-        "users": 178
+        "installs": 462,
+        "downloads": 3256,
+        "visitors": 48,
+        "activeUsers": 48,
+        "users": 309
       },
       {
         "id": "WatchAPI.watchapi-client",
-        "installs": 54,
-        "downloads": 1949,
-        "visitors": 29,
-        "returning": 3,
-        "users": 12
+        "installs": 111,
+        "downloads": 5376,
+        "visitors": 143,
+        "activeUsers": 173,
+        "users": 23
+      },
+      {
+        "id": "",
+        "installs": null,
+        "downloads": 0,
+        "visitors": 120,
+        "activeUsers": 124,
+        "users": null
+      },
+      {
+        "id": "",
+        "installs": null,
+        "downloads": 0,
+        "visitors": 9,
+        "activeUsers": 9,
+        "users": 2
       }
     ],
-    "profile": {},
-    "savedAt": "2026-03-12T19:56:37.573Z"
+    "profile": {
+      "github": 15,
+      "reddit": null,
+      "facebook": null,
+      "youtube": 1,
+      "x": 8,
+      "tiktok": 0,
+      "bsky": 4
+    },
+    "savedAt": "2026-06-29T12:13:30.658Z"
   },
   "current": {
     "stats": [
       {
         "id": "GitusAI.gitusai",
-        "installs": 266,
-        "downloads": 1050,
-        "visitors": 67,
-        "returning": 4,
-        "users": 179
+        "installs": 462,
+        "downloads": 3258,
+        "visitors": 47,
+        "activeUsers": 47,
+        "users": 309
       },
       {
         "id": "WatchAPI.watchapi-client",
-        "installs": 54,
-        "downloads": 1955,
-        "visitors": 32,
-        "returning": 13,
-        "users": 12
+        "installs": 111,
+        "downloads": 5402,
+        "visitors": 143,
+        "activeUsers": 173,
+        "users": 23
+      },
+      {
+        "id": "",
+        "installs": null,
+        "downloads": 0,
+        "visitors": 121,
+        "activeUsers": 124,
+        "users": null
+      },
+      {
+        "id": "",
+        "installs": null,
+        "downloads": 0,
+        "visitors": 9,
+        "activeUsers": 9,
+        "users": 2
       }
     ],
     "profile": {
-      "github": 13,
-      "reddit": 314,
+      "github": 15,
+      "reddit": null,
       "facebook": null,
       "youtube": 1,
-      "x": 9,
-      "tiktok": 0
+      "x": 8,
+      "tiktok": 0,
+      "bsky": 4
     }
   }
 }

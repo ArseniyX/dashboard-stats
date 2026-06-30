@@ -53,57 +53,32 @@ function updateSnapshot(patch) {
 const app = express();
 const PORT = process.env.PORT || 7654;
 
-const EXTENSIONS = [
-  {
-    id: "GitusAI.gitusai",
-    label: "GitusAI",
-    umamiId: "a2ea768f-d1e9-4d94-9eb0-75a572733b77",
-    dbEnv: "GITUS_NEON_DB",
-  },
-  {
-    id: "WatchAPI.watchapi-client",
-    label: "WatchAPI",
-    umamiId: "c58cef91-30db-49c2-9824-ba40df71c696",
-    dbEnv: "WATCHAPI_DB",
-  },
-];
+const EXTENSIONS = JSON.parse(readFileSync(join(__dirname, "data", "apps.json"), "utf8"));
 
-// --- Umami auth token cache ---
-let umamiToken = null;
-let umamiTokenExpiry = 0;
+// --- PostHog ---
+async function fetchPosthogStats(projectId) {
+  const apiKey = process.env.POSTHOG_API_KEY;
+  const host = process.env.POSTHOG_HOST || "https://us.posthog.com";
+  if (!apiKey) return { visitors: null, activeUsers: null };
 
-async function getUmamiToken() {
-  if (umamiToken && Date.now() < umamiTokenExpiry) return umamiToken;
+  const query = (sql) =>
+    fetch(`${host}/api/projects/${projectId}/query/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ query: { kind: "HogQLQuery", query: sql } }),
+    }).then((r) => {
+      if (!r.ok) throw new Error(`PostHog query failed: ${r.status}`);
+      return r.json();
+    });
 
-  const res = await fetch(`${process.env.UMAMI_URL}/api/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      username: process.env.UMAMI_USER,
-      password: process.env.UMAMI_PASS,
-    }),
-  });
-  if (!res.ok) throw new Error(`Umami login failed: ${res.status}`);
-  const data = await res.json();
-  umamiToken = data.token;
-  umamiTokenExpiry = Date.now() + 23 * 60 * 60 * 1000; // 23h
-  return umamiToken;
-}
-
-async function fetchUmamiStats(websiteId) {
-  const token = await getUmamiToken();
-  const endAt = Date.now();
-  const startAt = endAt - 30 * 24 * 60 * 60 * 1000; // last 30 days
-
-  const res = await fetch(`${process.env.UMAMI_URL}/api/websites/${websiteId}/stats?startAt=${startAt}&endAt=${endAt}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error(`Umami stats failed: ${res.status}`);
-  const stats = await res.json();
+  const [pageviewRes, activeRes] = await Promise.all([
+    query("SELECT count(distinct person_id) FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 30 day"),
+    query("SELECT count(distinct person_id) FROM events WHERE timestamp >= now() - interval 30 day"),
+  ]);
 
   return {
-    visitors: stats.visitors ?? 0,
-    returning: Math.max(0, (stats.visits ?? 0) - (stats.visitors ?? 0)),
+    visitors:    pageviewRes.results?.[0]?.[0] ?? null,
+    activeUsers: activeRes.results?.[0]?.[0] ?? null,
   };
 }
 
@@ -125,7 +100,8 @@ async function fetchUserCount(label, connectionString) {
 
 // --- VS Code Marketplace ---
 async function fetchMarketplaceStats() {
-  const criteria = EXTENSIONS.map((e) => ({ filterType: 7, value: e.id }));
+  const criteria = EXTENSIONS.filter((e) => e.id).map((e) => ({ filterType: 7, value: e.id }));
+  if (!criteria.length) return {};
   const res = await fetch(
     "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery",
     {
@@ -157,13 +133,18 @@ async function fetchMarketplaceStats() {
 // --- Open VSX ---
 async function fetchOpenVsxStats(extensionId) {
   const [namespace, name] = extensionId.split(".");
-  const res = await fetch(`https://open-vsx.org/api/${namespace}/${name}`);
-  if (!res.ok) {
-    if (res.status === 404) return { downloads: 0, notFound: true };
-    throw new Error(`Open VSX API error: ${res.status}`);
+  try {
+    const res = await fetch(`https://open-vsx.org/api/${namespace}/${name}`);
+    if (!res.ok) {
+      if (res.status === 404) return { downloads: 0, notFound: true };
+      throw new Error(`Open VSX API error: ${res.status}`);
+    }
+    const data = await res.json();
+    return { downloads: data.downloadCount ?? 0 };
+  } catch (err) {
+    console.error(`[OpenVSX] ${extensionId}:`, err.message);
+    return { downloads: 0, error: true };
   }
-  const data = await res.json();
-  return { downloads: data.downloadCount ?? 0 };
 }
 
 // --- API route ---
@@ -171,41 +152,43 @@ app.get("/api/stats", async (req, res) => {
   try {
     const [marketplaceStats, ...rest] = await Promise.all([
       fetchMarketplaceStats(),
-      ...EXTENSIONS.map((e) => fetchOpenVsxStats(e.id)),
-      ...EXTENSIONS.map((e) => fetchUmamiStats(e.umamiId)),
+      ...EXTENSIONS.map((e) => e.id ? fetchOpenVsxStats(e.id) : Promise.resolve(null)),
+      ...EXTENSIONS.map((e) => fetchPosthogStats(e.posthogProjectId).catch((err) => { console.error(`[PostHog] ${e.id}:`, err.message); return null; })),
       ...EXTENSIONS.map((e) => fetchUserCount(e.label, process.env[e.dbEnv])),
     ]);
 
     const vsxStats      = rest.slice(0, EXTENSIONS.length);
-    const umamiVisitors = rest.slice(EXTENSIONS.length, EXTENSIONS.length * 2);
+    const phStats       = rest.slice(EXTENSIONS.length, EXTENSIONS.length * 2);
     const userCounts    = rest.slice(EXTENSIONS.length * 2);
 
     const statsData = EXTENSIONS.map((ext, i) => {
-      const prev = snapshot.prev?.stats?.find((s) => s.id === ext.id);
-      const installs  = marketplaceStats[ext.id]?.installs ?? 0;
-      const downloads = vsxStats[i]?.downloads ?? 0;
-      const visitors  = umamiVisitors[i].visitors;
-      const returning = umamiVisitors[i].returning;
-      const users     = userCounts[i];
+      const prev        = snapshot.prev?.stats?.find((s) => s.id === ext.id);
+      const installs    = ext.id ? (marketplaceStats[ext.id]?.installs ?? 0) : null;
+      const downloads   = ext.id ? (vsxStats[i]?.downloads ?? 0) : null;
+      const visitors    = phStats[i]?.visitors ?? null;
+      const activeUsers = phStats[i]?.activeUsers ?? null;
+      const users       = userCounts[i];
+      const host        = process.env.POSTHOG_HOST || "https://us.posthog.com";
       return {
         id: ext.id,
         label: ext.label,
+        posthogUrl: process.env.POSTHOG_API_KEY ? `${host}/project/${ext.posthogProjectId}` : null,
         marketplace: { installs },
         openVsx: vsxStats[i],
         visitors,
-        returning,
+        activeUsers,
         users,
         changes: {
-          installs:  Math.max(0, delta(installs,  prev?.installs) ?? 0) || null,
-          downloads: Math.max(0, delta(downloads, prev?.downloads) ?? 0) || null,
-          visitors:  delta(visitors,  prev?.visitors),
-          returning: delta(returning, prev?.returning),
-          users:     delta(users,     prev?.users),
+          installs:    installs    != null ? Math.max(0, delta(installs,  prev?.installs)  ?? 0) || null : null,
+          downloads:   downloads   != null ? Math.max(0, delta(downloads, prev?.downloads) ?? 0) || null : null,
+          visitors:    delta(visitors,    prev?.visitors),
+          activeUsers: delta(activeUsers, prev?.activeUsers),
+          users:       delta(users,       prev?.users),
         },
       };
     });
 
-    updateSnapshot({ stats: statsData.map(({ id, marketplace, openVsx, visitors, returning, users }) => ({ id, installs: marketplace.installs, downloads: openVsx?.downloads ?? 0, visitors, returning, users })) });
+    updateSnapshot({ stats: statsData.map(({ id, marketplace, openVsx, visitors, activeUsers, users }) => ({ id, installs: marketplace.installs, downloads: openVsx?.downloads ?? 0, visitors, activeUsers, users })) });
     const stats = statsData;
 
     res.json({ stats, updatedAt: new Date().toISOString() });
@@ -261,6 +244,17 @@ async function fetchYouTube() {
   if (!res.ok) throw new Error(`YouTube API error: ${res.status}`);
   const data = await res.json();
   return parseInt(data.items?.[0]?.statistics?.subscriberCount ?? null);
+}
+
+async function fetchBluesky() {
+  const handle = process.env.BSKY_HANDLE;
+  if (!handle) return null;
+  const res = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=${handle}`, {
+    headers: { "User-Agent": "dashboard" },
+  });
+  if (!res.ok) throw new Error(`Bluesky API error: ${res.status}`);
+  const data = await res.json();
+  return data.followersCount ?? null;
 }
 
 // --- Shared browser instance ---
@@ -368,11 +362,12 @@ app.get("/api/profile", async (req, res) => {
   const safe = (fn, label) =>
     fn().catch((err) => { console.error(`[${label}]`, err.message); return null; });
 
-  const [github, reddit, facebook, youtube] = await Promise.all([
+  const [github, reddit, facebook, youtube, bsky] = await Promise.all([
     safe(fetchGitHub, "GitHub"),
     safe(fetchReddit, "Reddit"),
     safe(fetchFacebook, "Facebook"),
     safe(fetchYouTube, "YouTube"),
+    safe(fetchBluesky, "Bluesky"),
   ]);
 
   const prev = snapshot.prev?.profile ?? {};
@@ -381,11 +376,31 @@ app.get("/api/profile", async (req, res) => {
     reddit:   delta(reddit,   prev.reddit),
     facebook: delta(facebook, prev.facebook),
     youtube:  delta(youtube,  prev.youtube),
+    bsky:     delta(bsky,     prev.bsky),
   };
 
-  updateSnapshot({ profile: { ...snapshot.current.profile, github, reddit, facebook, youtube } });
+  updateSnapshot({ profile: { ...snapshot.current.profile, github, reddit, facebook, youtube, bsky } });
 
-  res.json({ github, reddit, facebook, youtube, changes, updatedAt: new Date().toISOString() });
+  res.json({ github, reddit, facebook, youtube, bsky, changes, updatedAt: new Date().toISOString() });
+});
+
+app.get("/api/apps", (req, res) => {
+  res.json(EXTENSIONS);
+});
+
+app.get("/api/config", (req, res) => {
+  const ytChannel = process.env.YOUTUBE_CHANNEL_ID;
+  res.json({
+    socialUrls: {
+      github:   process.env.GITHUB_USERNAME   ? `https://github.com/${process.env.GITHUB_USERNAME}` : null,
+      reddit:   process.env.REDDIT_USERNAME   ? `https://reddit.com/user/${process.env.REDDIT_USERNAME}` : null,
+      facebook: process.env.FACEBOOK_PAGE_ID  ? `https://facebook.com/${process.env.FACEBOOK_PAGE_ID}` : null,
+      youtube:  ytChannel ? `https://youtube.com/${ytChannel.startsWith("UC") ? "channel/" + ytChannel : "@" + ytChannel}` : null,
+      x:        process.env.X_USERNAME        ? `https://x.com/${process.env.X_USERNAME}` : null,
+      tiktok:   process.env.TIKTOK_USERNAME   ? `https://tiktok.com/@${process.env.TIKTOK_USERNAME}` : null,
+      bsky:     process.env.BSKY_HANDLE       ? `https://bsky.app/profile/${process.env.BSKY_HANDLE}` : null,
+    },
+  });
 });
 
 app.use(express.static(join(__dirname, "public")));

@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
+    "start": "pm2 start server.js --name dashboard",
+    "deploy": "pm2 restart dashboard",
     "dev": "node --watch server.js"
   },
   "dependencies": {

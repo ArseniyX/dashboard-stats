@@ -210,6 +210,9 @@
             .color-tiktok {
                 color: #69c9d0;
             }
+            .color-bsky {
+                color: #0085ff;
+            }
 
             .change {
                 font-size: 0.65rem;
@@ -229,6 +232,21 @@
                 border-radius: 8px;
                 font-size: 0.82rem;
                 color: #f87171;
+            }
+
+            a.stat, a.social-stat {
+                text-decoration: none;
+                color: inherit;
+            }
+            a.stat:hover, a.social-stat:hover {
+                opacity: 0.75;
+            }
+            a.ext-info {
+                text-decoration: none;
+                color: inherit;
+            }
+            a.ext-info:hover .ext-name {
+                color: var(--accent-blue);
             }
         </style>
     </head>
@@ -253,16 +271,16 @@
         <div class="profile-card" x-show="profile">
             <img src="https://yt3.ggpht.com/5D_ejStDglxJsy8-BDxmDZbJUrW0USbat7RXN0L1qkqzrG7WLcEsArMWJbN4d5vTeNEgm4r_hw=s108-c-k-c0x00ffffff-no-rj" alt="Avatar" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;align-self:center;">
             <template x-for="item in profileItems()" :key="item.label">
-                <div class="social-stat">
+                <a class="social-stat" :href="item.url || '#'" :target="item.url ? '_blank' : '_self'" :rel="item.url ? 'noopener noreferrer' : ''">
                     <div class="stat-label" x-text="item.label"></div>
                     <div class="stat-value" :class="item.color" x-text="fmt(item.value)"></div>
                     <div class="change" :class="item.change > 0 ? 'change-up' : 'change-down'" x-show="item.change != null" x-text="fmtChange(item.change, item.value)"></div>
-                </div>
+                </a>
             </template>
         </div>
 
         <div class="grid">
-            <template x-for="ext in cards" :key="ext.id">
+            <template x-for="ext in cards" :key="ext.id || ext.label">
                 <div class="ext-card">
                     <div class="ext-icon">
                         <img
@@ -273,34 +291,42 @@
                             style="border-radius: 4px; object-fit: contain"
                         />
                     </div>
-                    <div class="ext-info">
+                    <a class="ext-info" :href="ext.id ? 'https://marketplace.visualstudio.com/items?itemName=' + ext.id : (ext.posthogUrl || '#')" :target="ext.id || ext.posthogUrl ? '_blank' : '_self'" rel="noopener noreferrer">
                         <div class="ext-name" x-text="ext.label"></div>
-                        <div class="ext-id" x-text="ext.id"></div>
-                    </div>
+                        <div class="ext-id" x-text="ext.id" x-show="ext.id"></div>
+                    </a>
                     <div class="stats">
-                        <div class="stat">
+                        <template x-if="ext.id">
+                        <a class="stat" :href="'https://marketplace.visualstudio.com/items?itemName=' + ext.id" target="_blank" rel="noopener noreferrer">
                             <div class="stat-label">Marketplace</div>
                             <div class="stat-value color-blue" :class="{ loading }" x-text="loading ? '…' : fmt(ext.marketplace?.installs)"></div>
                             <div class="change" :class="ext.changes?.installs > 0 ? 'change-up' : 'change-down'" x-show="!loading && ext.changes?.installs != null" x-text="fmtChange(ext.changes?.installs, ext.marketplace?.installs)"></div>
-                        </div>
+                        </a>
+                        </template>
+                        <template x-if="ext.id">
                         <div class="divider"></div>
-                        <div class="stat">
+                        </template>
+                        <template x-if="ext.id">
+                        <a class="stat" :href="'https://open-vsx.org/extension/' + ext.id.split('.')[0] + '/' + ext.id.split('.')[1]" target="_blank" rel="noopener noreferrer">
                             <div class="stat-label">Open VSX</div>
                             <div class="stat-value color-green" :class="{ loading }" x-text="loading ? '…' : (ext.openVsx?.notFound ? '—' : fmt(ext.openVsx?.downloads))"></div>
                             <div class="change" :class="ext.changes?.downloads > 0 ? 'change-up' : 'change-down'" x-show="!loading && ext.changes?.downloads != null" x-text="fmtChange(ext.changes?.downloads, ext.openVsx?.downloads)"></div>
-                        </div>
+                        </a>
+                        </template>
+                        <template x-if="ext.id">
                         <div class="divider"></div>
-                        <div class="stat">
+                        </template>
+                        <a class="stat" :href="ext.posthogUrl || '#'" :target="ext.posthogUrl ? '_blank' : '_self'" :rel="ext.posthogUrl ? 'noopener noreferrer' : ''">
                             <div class="stat-label">Visitors 30d</div>
                             <div class="stat-value color-purple" :class="{ loading }" x-text="loading ? '…' : fmt(ext.visitors)"></div>
                             <div class="change" :class="ext.changes?.visitors > 0 ? 'change-up' : 'change-down'" x-show="!loading && ext.changes?.visitors != null" x-text="fmtChange(ext.changes?.visitors, ext.visitors)"></div>
-                        </div>
+                        </a>
                         <div class="divider"></div>
-                        <div class="stat">
-                            <div class="stat-label">Returning</div>
-                            <div class="stat-value color-orange" :class="{ loading }" x-text="loading ? '…' : fmt(ext.returning)"></div>
-                            <div class="change" :class="ext.changes?.returning > 0 ? 'change-up' : 'change-down'" x-show="!loading && ext.changes?.returning != null" x-text="fmtChange(ext.changes?.returning, ext.returning)"></div>
-                        </div>
+                        <a class="stat" :href="ext.posthogUrl || '#'" :target="ext.posthogUrl ? '_blank' : '_self'" :rel="ext.posthogUrl ? 'noopener noreferrer' : ''">
+                            <div class="stat-label">Active Users</div>
+                            <div class="stat-value color-orange" :class="{ loading }" x-text="loading ? '…' : fmt(ext.activeUsers)"></div>
+                            <div class="change" :class="ext.changes?.activeUsers > 0 ? 'change-up' : 'change-down'" x-show="!loading && ext.changes?.activeUsers != null" x-text="fmtChange(ext.changes?.activeUsers, ext.activeUsers)"></div>
+                        </a>
                         <div class="divider"></div>
                         <div class="stat">
                             <div class="stat-label">Users</div>
@@ -313,29 +339,18 @@
         </div>
 
         <script>
-            const EXTENSIONS = [
-                {
-                    id: "GitusAI.gitusai",
-                    label: "GitusAI",
-                    favicon: "https://gitusai.com/logo.png",
-                },
-                {
-                    id: "WatchAPI.watchapi-client",
-                    label: "WatchAPI",
-                    favicon:
-                        "https://watchapi.dev/_next/image?url=%2Flogo.png&w=96&q=75",
-                },
-            ];
-
             function dashboard() {
                 return {
-                    cards: EXTENSIONS,
+                    cards: [],
                     loading: true,
                     updatedAt: null,
                     error: null,
                     profile: null,
+                    socialUrls: {},
 
                     async init() {
+                        fetch("/api/apps").then(r => r.json()).then(apps => { this.cards = apps; }).catch(() => {});
+                        fetch("/api/config").then(r => r.json()).then(d => { this.socialUrls = d.socialUrls ?? {}; }).catch(() => {});
                         await Promise.all([this.load(), this.loadProfile()]);
                         this.loadX();
                         this.loadTikTok();
@@ -379,13 +394,15 @@
                     profileItems() {
                         if (!this.profile) return [];
                         const c = this.profile.changes ?? {};
+                        const u = this.socialUrls;
                         return [
-                            { label: "Reddit",   value: this.profile.reddit,   color: "color-reddit",   change: c.reddit },
-                            { label: "Facebook", value: this.profile.facebook, color: "color-facebook", change: c.facebook },
-                            { label: "GitHub",   value: this.profile.github,   color: "color-github",   change: c.github },
-                            { label: "YouTube",  value: this.profile.youtube,  color: "color-youtube",  change: c.youtube },
-                            { label: "X",        value: this.profile.x,        color: "color-x",        change: this.profile.xChange ?? null },
-                            { label: "TikTok",   value: this.profile.tiktok,   color: "color-tiktok",   change: this.profile.tiktokChange ?? null },
+                            { label: "Reddit",   value: this.profile.reddit,   color: "color-reddit",   change: c.reddit,                        url: u.reddit },
+                            { label: "Facebook", value: this.profile.facebook, color: "color-facebook", change: c.facebook,                      url: u.facebook },
+                            { label: "GitHub",   value: this.profile.github,   color: "color-github",   change: c.github,                        url: u.github },
+                            { label: "YouTube",  value: this.profile.youtube,  color: "color-youtube",  change: c.youtube,                       url: u.youtube },
+                            { label: "X",        value: this.profile.x,        color: "color-x",        change: this.profile.xChange ?? null,    url: u.x },
+                            { label: "TikTok",   value: this.profile.tiktok,   color: "color-tiktok",   change: this.profile.tiktokChange ?? null, url: u.tiktok },
+                            { label: "Bluesky",  value: this.profile.bsky,     color: "color-bsky",     change: (this.profile.changes ?? {}).bsky ?? null, url: u.bsky },
                         ].filter((i) => i.value !== null);
                     },
 
@@ -398,7 +415,7 @@
                                 throw new Error(`Server error: ${res.status}`);
                             const { stats, updatedAt } = await res.json();
                             this.cards = stats.map((s) => ({
-                                ...EXTENSIONS.find((e) => e.id === s.id),
+                                ...this.cards.find((e) => e.id === s.id),
                                 ...s,
                             }));
                             this.updatedAt = updatedAt;

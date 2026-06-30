@@ -1,0 +1,30 @@
+[
+  {
+    "id": "GitusAI.gitusai",
+    "label": "GitusAI",
+    "favicon": "https://gitusai.com/logo.png",
+    "posthogProjectId": 93956,
+    "dbEnv": "GITUS_NEON_DB"
+  },
+  {
+    "id": "WatchAPI.watchapi-client",
+    "label": "WatchAPI",
+    "favicon": "https://watchapi.dev/_next/image?url=%2Flogo.png&w=96&q=75",
+    "posthogProjectId": 145564,
+    "dbEnv": "WATCHAPI_DB"
+  },
+  {
+    "id": "",
+    "label": "ShopNex",
+    "favicon": "https://app.shopnex.ai/favicon-dark.png",
+    "posthogProjectId": 60146,
+    "dbEnv": "SHOPNEX_DB"
+  },
+  {
+    "id": "",
+    "label": "CodeVey",
+    "favicon": "https://codevey.com/favicon.svg",
+    "posthogProjectId": 144696,
+    "dbEnv": "CODEVEY_DB"
+  }
+]
